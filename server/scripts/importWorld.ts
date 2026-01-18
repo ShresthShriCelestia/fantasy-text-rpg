@@ -28,8 +28,11 @@ async function importWorld() {
 
   const locationsToSave = rawBurgs.map((burg: any) => {
     // SAFETY CHECK: Ensure population is a real number, otherwise default to 500
-    const rawPop = Number(burg.pop);
-    const safePop = !isNaN(rawPop) ? rawPop * 1000 : 500;
+    const rawPop = Number(burg.population);
+    const safePop = !isNaN(rawPop) && rawPop > 0 ? rawPop * 1000 : 500;
+
+    // Generate a seed for the city generator based on the burg ID
+    const seed = 1620655660000 + burg.i;
 
     return {
       azgaarId: burg.i,
@@ -39,7 +42,15 @@ async function importWorld() {
         x: burg.x,
         y: burg.y
       },
-      population: safePop 
+      population: safePop,
+      cityType: burg.type || "Inland",
+      citadel: burg.citadel || 0,
+      plaza: burg.plaza || 0,
+      walls: burg.walls || 0,
+      shantytown: burg.shanty || 0,
+      temple: burg.temple || 0,
+      port: burg.port || "0",
+      seed: seed
     };
   });
 

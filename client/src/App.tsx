@@ -8,6 +8,14 @@ interface City {
   type: string;
   population: number;
   coordinates: { x: number; y: number };
+  cityType?: string;
+  citadel?: number;
+  plaza?: number;
+  walls?: number;
+  shantytown?: number;
+  temple?: number;
+  port?: string;
+  seed?: number;
 }
 
 function App() {
@@ -28,10 +36,18 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1>🌍 The Atlas RPG</h1>
+    <div style={{ margin: 0, padding: 0, fontFamily: 'sans-serif', width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {loading ? (
-        <p>Loading world data...</p>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          height: '100vh',
+          fontSize: '1.5rem',
+          color: '#666'
+        }}>
+          Loading world data...
+        </div>
       ) : (
         <WorldMap cities={cities} />
       )}

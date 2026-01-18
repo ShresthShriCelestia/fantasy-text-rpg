@@ -11,6 +11,15 @@ const LocationSchema = new mongoose.Schema({
     },
     population: Number,
     description: String, // We will generate this later using Watabou logic
+    // City features for Watabou generator
+    cityType: String, // "River", "Naval", "Inland", etc.
+    citadel: Number, // 0 or 1
+    plaza: Number, // 0 or 1
+    walls: Number, // 0 or 1
+    shantytown: Number, // 0 or 1
+    temple: Number, // 0 or 1
+    port: String, // "1" if port city
+    seed: Number, // For reproducible city generation
 });
 
 // Create te model 
