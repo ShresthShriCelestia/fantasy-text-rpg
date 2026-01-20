@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { CityDetailView } from './CityDetailView';
 
 // Define the shape of a City
 interface City {
@@ -17,41 +18,13 @@ interface City {
   seed?: number;
 }
 
-// Generate Watabou city URL
-const generateCityURL = (city: City): string => {
-  // Size formula: approximately sqrt(population/15) to match Azgaar's sizing
-  // For pop 29245, this gives ~44, which is close to the 47 we see
-  const size = Math.min(Math.max(Math.floor(Math.sqrt(city.population / 15)), 10), 60);
-  const seed = city.seed || Date.now();
-  const coast = city.port === "1" ? 1 : 0;
-  const river = city.cityType === "River" ? 1 : 0;
-
-  const params = new URLSearchParams({
-    size: size.toString(),
-    seed: seed.toString(),
-    name: city.name,
-    population: city.population.toString(),
-    citadel: (city.citadel || 0).toString(),
-    urban_castle: (city.citadel || 0).toString(),
-    plaza: (city.plaza || 0).toString(),
-    temple: (city.temple || 0).toString(),
-    walls: (city.walls || 0).toString(),
-    shantytown: (city.shantytown || 0).toString(),
-    coast: coast.toString(),
-    river: river.toString(),
-    greens: "0",
-    hub: "1"
-  });
-
-  return `https://watabou.github.io/city-generator/?${params.toString()}`;
-};
-
 interface WorldMapProps {
   cities: City[];
 }
 
 export const WorldMap: React.FC<WorldMapProps> = ({ cities }) => {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  const [viewingCityDetail, setViewingCityDetail] = useState<City | null>(null);
   const [scale, setScale] = useState(1);
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -93,6 +66,16 @@ export const WorldMap: React.FC<WorldMapProps> = ({ cities }) => {
       }
     };
   }, [])
+
+  // If viewing city detail, show that view instead
+  if (viewingCityDetail) {
+    return (
+      <CityDetailView
+        city={viewingCityDetail}
+        onBack={() => setViewingCityDetail(null)}
+      />
+    );
+  }
 
   return (
     <div style={{
@@ -181,7 +164,7 @@ export const WorldMap: React.FC<WorldMapProps> = ({ cities }) => {
             {/* Action Buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <button
-                onClick={() => window.open(generateCityURL(selectedCity), '_blank')}
+                onClick={() => setViewingCityDetail(selectedCity)}
                 style={{
                   width: '100%',
                   padding: '12px',
