@@ -2,6 +2,8 @@ import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { Location } from "./models/Location";
 import { CityData } from "./models/CityData";
+import { generatePOIs } from "./utils/poiGenerator";
+import { parseWatabouJSON, assignPOIsToBuildings } from "./utils/watabouParser";
 import mongoose from 'mongoose'
 
 // Read the connection string from the .env file
@@ -121,6 +123,173 @@ const app = new Elysia()
         await cityData.save();
 
         return { success: true };
+    })
+
+    // ===== POI ENDPOINTS =====
+
+    // Generate POIs for a city (auto-generate based on city stats)
+    .post("/locations/:locationId/generate-pois", async ({ params }) => {
+        try {
+            const locationId = params.locationId;
+
+            // Get the location/city data
+            const location = await Location.findById(locationId);
+            if (!location) {
+                return { success: false, error: "Location not found" };
+            }
+
+            // Generate POIs based on city characteristics
+            const pois = generatePOIs({
+                name: location.name,
+                population: location.population || 0,
+                type: location.type as any,
+                cityType: location.cityType || '',
+                citadel: location.citadel || 0,
+                plaza: location.plaza || 0,
+                temple: location.temple || 0,
+                port: location.port || '0',
+                walls: location.walls || 0
+            });
+
+            // Save or update city data with POIs
+            let cityData = await CityData.findOne({ locationId });
+            if (!cityData) {
+                cityData = new CityData({
+                    locationId,
+                    pois: pois,
+                    districts: []
+                });
+            } else {
+                cityData.pois = pois as any;
+            }
+
+            await cityData.save();
+
+            return { success: true, pois, count: pois.length };
+        } catch (error) {
+            console.error('Error generating POIs:', error);
+            return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+    })
+
+    // Get all POIs for a city
+    .get("/locations/:locationId/pois", async ({ params }) => {
+        const cityData = await CityData.findOne({ locationId: params.locationId });
+        if (!cityData) {
+            return { pois: [] };
+        }
+        return { pois: cityData.pois || [] };
+    })
+
+    // Update a specific POI
+    .patch("/locations/:locationId/pois/:poiId", async ({ params, body }) => {
+        const { locationId, poiId } = params;
+
+        const cityData = await CityData.findOne({ locationId });
+        if (!cityData) {
+            return { success: false, error: "City data not found" };
+        }
+
+        const poi = cityData.pois.find((p: any) => p.poiId === poiId);
+        if (!poi) {
+            return { success: false, error: "POI not found" };
+        }
+
+        // Update POI properties
+        Object.assign(poi, body);
+        await cityData.save();
+
+        return { success: true, poi };
+    })
+
+    // Purchase a property (for residences)
+    .post("/locations/:locationId/pois/:poiId/purchase", async ({ params, body }) => {
+        const { locationId, poiId } = params;
+        const { playerName } = body as any;
+
+        const cityData = await CityData.findOne({ locationId });
+        if (!cityData) {
+            return { success: false, error: "City data not found" };
+        }
+
+        const poi = cityData.pois.find((p: any) => p.poiId === poiId);
+        if (!poi) {
+            return { success: false, error: "POI not found" };
+        }
+
+        if (poi.type !== 'residence') {
+            return { success: false, error: "This location is not for sale" };
+        }
+
+        if (!poi.available) {
+            return { success: false, error: "This property is not available" };
+        }
+
+        // Mark as sold
+        poi.available = false;
+        poi.owner = playerName;
+
+        await cityData.save();
+
+        return { success: true, message: `You are now the owner of ${poi.name}!`, poi };
+    })
+
+    // Upload Watabou JSON and auto-position POIs
+    .post("/locations/:locationId/upload-watabou", async ({ params, body }) => {
+        try {
+            const { locationId } = params;
+            const watabouJSON = body as any;
+
+            console.log('Received Watabou JSON for location:', locationId);
+
+            // Get existing city data with POIs
+            const cityData = await CityData.findOne({ locationId });
+            if (!cityData || !cityData.pois || cityData.pois.length === 0) {
+                return { success: false, error: "Please generate POIs first before uploading Watabou data" };
+            }
+
+            // Parse Watabou JSON
+            const watabouData = parseWatabouJSON(watabouJSON);
+            console.log(`Parsed Watabou data: ${watabouData.castles.length} castles, ${watabouData.plazas.length} plazas, ${watabouData.buildings.length} buildings`);
+
+            // Assign POIs to buildings
+            const updatedPOIs = assignPOIsToBuildings(cityData.pois as any[], watabouData);
+
+            // Update city data
+            cityData.pois = updatedPOIs as any;
+            cityData.rawData = watabouJSON; // Store the raw Watabou data
+
+            // Save with version key check disabled to avoid conflicts
+            try {
+                await cityData.save();
+            } catch (error: any) {
+                if (error.name === 'VersionError') {
+                    // Retry once by fetching fresh data
+                    const freshData = await CityData.findOne({ locationId });
+                    if (freshData) {
+                        freshData.pois = updatedPOIs as any;
+                        freshData.rawData = watabouJSON;
+                        await freshData.save();
+                    }
+                } else {
+                    throw error;
+                }
+            }
+
+            return {
+                success: true,
+                message: 'POIs positioned based on Watabou map data',
+                stats: {
+                    castles: watabouData.castles.length,
+                    plazas: watabouData.plazas.length,
+                    buildings: watabouData.buildings.length,
+                    poisUpdated: updatedPOIs.length
+                }
+            };
+        } catch (error) {
+            console.error('Error processing Watabou JSON:', error);
+            return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
     })
 
     .listen(3000);

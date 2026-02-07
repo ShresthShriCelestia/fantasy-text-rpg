@@ -2,43 +2,45 @@ import mongoose from "mongoose";
 
 // POI (Point of Interest) types
 export enum POIType {
-  TAVERN = "tavern",
-  GUILD = "guild",
+  CASTLE = "castle",
   TEMPLE = "temple",
+  TAVERN = "tavern",
   SHOP = "shop",
-  BLACKSMITH = "blacksmith",
-  LIBRARY = "library",
-  MARKETPLACE = "marketplace",
+  GUILD = "guild",
+  PLAZA = "plaza",
+  RESIDENCE = "residence",
+  PORT = "port",
   BARRACKS = "barracks",
-  NOBLE_HOUSE = "noble_house",
-  CITY_HALL = "city_hall",
   CUSTOM = "custom"
 }
 
-// Schema for individual buildings/POIs
-const BuildingSchema = new mongoose.Schema({
-  // Original data from Watabou export
-  watabouId: String, // ID from the JSON export
+// Schema for POIs (Points of Interest)
+const POISchema = new mongoose.Schema({
+  poiId: { type: String, required: true }, // Unique POI identifier
+  name: { type: String, required: true }, // e.g., "The Prancing Pony", "Castle"
+  type: {
+    type: String,
+    enum: Object.values(POIType),
+    required: true
+  },
+  district: String, // Which district/quarter it's in
+  description: String, // Detailed description for players
+
+  // Location data
   coordinates: {
     x: Number,
     y: Number
   },
-  type: String, // Original building type from Watabou
 
-  // Enhanced data for gameplay
-  isPOI: { type: Boolean, default: false }, // Is this a key location?
-  poiType: {
-    type: String,
-    enum: Object.values(POIType),
-    required: function() { return this.isPOI; }
-  },
-  name: String, // Custom name for POIs (e.g., "The Prancing Pony", "Blacksmith's Guild")
-  description: String, // Detailed description
-  owner: String, // NPC owner name
-  notes: String, // DM/player notes
+  // Property system (for residences)
+  available: { type: Boolean, default: false }, // Can be purchased?
+  price: Number, // Purchase price
+  owner: String, // Player username/ID if owned
 
-  // Metadata
-  customData: mongoose.Schema.Types.Mixed // Flexible field for any custom properties
+  // Interaction data
+  visited: { type: Boolean, default: false }, // Has player visited?
+  notes: String, // Player/DM notes
+  customData: mongoose.Schema.Types.Mixed // Flexible field for quests, NPCs, etc
 });
 
 // Schema for city districts/wards
@@ -62,7 +64,7 @@ const CityDataSchema = new mongoose.Schema({
   rawData: mongoose.Schema.Types.Mixed,
 
   // Parsed and enhanced data
-  buildings: [BuildingSchema],
+  pois: [POISchema], // Points of interest (key locations)
   districts: [DistrictSchema],
 
   // Additional city-level data
@@ -78,9 +80,8 @@ const CityDataSchema = new mongoose.Schema({
 });
 
 // Update lastModified on save
-CityDataSchema.pre('save', function(next) {
+CityDataSchema.pre('save', function() {
   this.lastModified = new Date();
-  next();
 });
 
 export const CityData = mongoose.model("CityData", CityDataSchema);
